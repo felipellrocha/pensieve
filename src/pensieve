@@ -1,0 +1,101 @@
+#!/usr/bin/env node
+
+const uuidv1 = require("uuid/v1");
+const util = require("util");
+const childProcess = require("child_process");
+const program = require("commander");
+const Kubernetes = require("./kubernetes");
+
+program.version("0.1.0");
+
+program
+  .option(
+    "-s, --service [service]",
+    "Name of the service that will be replaced"
+  )
+  .option(
+    "-n, --namespace [namespace]",
+    'The namespace of the service you\'re going to be replacing. Defaults to "default"',
+    "default"
+  )
+  .option(
+    "-i, --image [image]",
+    "Name of the image you will be using as your development environment"
+  )
+  .option(
+    "-d, --directory [dir]",
+    "location of the folder that will be synced. Defaults to the current folder",
+    process.cwd()
+  );
+
+(async function() {
+  try {
+    const { service: name, image, namespace, directory } = program.parse(
+      process.argv
+    );
+
+    const k8s = new Kubernetes(namespace);
+
+    if (!name || !image) throw "Missing required parameters.";
+
+    console.log(`Creating deployment for service: ${name}`);
+    console.log(`Image used: ${image}`);
+
+    const uuid = uuidv1();
+    const full = `${name}-${uuid}`;
+
+    const pod = await k8s.getPod(name);
+    const service = await k8s.getService(name);
+
+    if (!service) throw "Service not found.";
+    console.log("Service found...");
+
+    const { env, ports } = pod.spec.containers[0];
+
+    console.log("Creating pod...");
+    await k8s.createDeployment({
+      image,
+      name,
+      directory,
+      env,
+      ports,
+      instance: uuid
+    });
+    console.log("Waiting for pod to initialize...");
+    const podName = await k8s.waitForPodInit(full);
+    console.log("Pointing service to new deployment...");
+
+    await k8s.reselectService(name, { name: full });
+
+    console.log("Have fun!");
+
+    const child = childProcess.spawn(
+      "kubectl",
+      ["exec", "-it", podName, "--", "/bin/bash"],
+      {
+        stdio: "inherit"
+      }
+    );
+
+    const close = async () => {
+      try {
+        console.log("Returning everything back to previous state.");
+        await k8s.deleteDeployment(full);
+        console.log("Pods will go away in a bit...");
+        console.log("Moving service back...");
+        await k8s.reselectService(name, service.spec.selector);
+        console.log("Good bye!");
+      } catch (e) {
+        console.error(e);
+        process.exit();
+      }
+    };
+
+    process.on("SIGINT", close);
+    process.on("SIGTERM", close);
+    child.on("close", close);
+  } catch (e) {
+    console.error(util.inspect(e, false, null, true /* enable colors */));
+    process.exit();
+  }
+})();
