@@ -1,74 +1,71 @@
-const process = require("process");
+const process = require('process');
 
-module.exports = ({
-  image,
-  name,
-  port = [{}],
-  instance,
-  directory,
-  env = [{}],
-  ports
-} = {}) => ({
-  apiVersion: "apps/v1beta1",
-  kind: "Deployment",
+module.exports = ({image, name, port = [{}], instance, directory, env = [{}], ports} = {}) => ({
+  apiVersion: 'apps/v1beta1',
+  kind: 'Deployment',
   metadata: {
     name: `${name}-${instance}`,
     labels: {
-      name: `${name}-${instance}`
-    }
+      name: `${name}-${instance}`,
+      development: 'pensieve',
+    },
   },
   spec: {
     replicas: 1,
     selector: {
       matchLabels: {
         name: `${name}-${instance}`,
-        instance
-      }
+        instance,
+      },
     },
     template: {
       metadata: {
         labels: {
           name: `${name}-${instance}`,
-          instance
-        }
+          instance,
+        },
       },
       spec: {
         volumes: [
           {
-            name: "localdev",
+            name: 'localdev',
             nfs: {
               server: "192.168.99.1",
-              path: directory
-            }
-          }
+//              server: 'docker.for.mac.localhost',
+              path: directory,
+            },
+          },
         ],
         containers: [
           {
             name,
             image,
-            imagePullPolicy: "Always",
+            imagePullPolicy: 'Always',
+            securityContext: {
+              privileged: true,
+            },
             volumeMounts: [
               {
-                name: "localdev",
-                mountPath: "/opt/app"
-              }
+                name: 'localdev',
+                mountPath: '/opt/app',
+              },
             ],
             env,
             ports,
             livenessProbe: {
               exec: {
-                command: ["touch", "/tmp/healthy"]
-              }
+                command: ['touch', '/tmp/healthy'],
+              },
             },
             readinessProbe: {
               exec: {
-                command: ["touch", "/tmp/healthy"]
-              }
+                command: ['touch', '/tmp/healthy'],
+              },
             },
-            resources: {}
-          }
-        ]
-      }
-    }
-  }
+            resources: {},
+          },
+        ],
+      },
+    },
+  },
 });
