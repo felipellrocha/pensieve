@@ -1,6 +1,16 @@
 const process = require('process');
 
-module.exports = ({image, name, port = [{}], instance, directory, env = [{}], ports} = {}) => ({
+module.exports = ({
+  image,
+  name,
+  instance,
+  directory,
+  volumes = [{}],
+  volumeMounts = [{}],
+  port = [{}],
+  env = [{}],
+  ports,
+} = {}) => ({
   apiVersion: 'apps/v1beta1',
   kind: 'Deployment',
   metadata: {
@@ -27,11 +37,15 @@ module.exports = ({image, name, port = [{}], instance, directory, env = [{}], po
       },
       spec: {
         volumes: [
+          ...volumes,
           {
             name: 'localdev',
             nfs: {
-              server: "192.168.99.1",
-//              server: 'docker.for.mac.localhost',
+              // virtualbox - minikube
+              //server: '192.168.99.1',
+              // virtualbox - hyperkit
+              server: '192.168.64.1',
+              //              server: 'docker.for.mac.localhost',
               path: directory,
             },
           },
@@ -45,6 +59,7 @@ module.exports = ({image, name, port = [{}], instance, directory, env = [{}], po
               privileged: true,
             },
             volumeMounts: [
+              ...volumeMounts,
               {
                 name: 'localdev',
                 mountPath: '/opt/app',

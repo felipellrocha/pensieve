@@ -51,13 +51,16 @@ program
     if (!service) throw "Service not found.";
     console.log("Service found...");
 
-    const { env, ports } = pod.spec.containers[0];
+    const { volumes } = pod.spec;
+    const { env, ports, volumeMounts } = pod.spec.containers[0];
 
     console.log("Creating pod...");
     await k8s.createDeployment({
       image,
       name,
       directory,
+      volumeMounts,
+      volumes,
       env,
       ports,
       instance: uuid
